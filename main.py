@@ -95,6 +95,11 @@ def process_video(message: Message):
         response = requests.post('https://api.freeconvert.com/v1/process/import/upload', headers=headers)
         upload_task = response.json()
 
+        if 'id' not in upload_task:
+            print(f"Error in upload task response: {upload_task}")
+            processing_msg.edit_text("❌ An error occurred while processing your video. Please check your API key and try again.")
+            return
+
         # 2. Upload the file
         upload_url = upload_task['result']['form']['url']
         upload_parameters = upload_task['result']['form']['parameters']
@@ -123,6 +128,12 @@ def process_video(message: Message):
         }
         response = requests.post('https://api.freeconvert.com/v1/process/compress', json=compress_task_body, headers=headers)
         compress_task = response.json()
+
+        if 'id' not in compress_task:
+            print(f"Error in compress task response: {compress_task}")
+            processing_msg.edit_text("❌ An error occurred while processing your video. Please check your API key and try again.")
+            return
+
         compress_task_id = compress_task['id']
 
         # 4. Wait for the compression to finish
@@ -158,6 +169,7 @@ def process_video(message: Message):
         )
 
     except Exception as e:
+        print(f"An error occurred: {e}")
         processing_msg.edit_text(f"❌ An error occurred: {str(e)}")
     finally:
         if 'downloaded_file' in locals() and os.path.exists(downloaded_file):
