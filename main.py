@@ -222,6 +222,24 @@ def delete_file_command(client, message: Message):
     message.reply_text(response)
     user_states[user_id] = "awaiting_file_to_delete"
 
+@app.on_message(filters.command("about"))
+def about(client, message: Message):
+    message.reply_text(
+        "**About This Bot**\n\n"
+        "This bot compresses your video files using the freeconvert.com API.\n\n"
+        "**Features:**\n"
+        "- Compress videos up to 100MB\n"
+        "- Keep a history of your compressed files\n"
+        "- Delete files from your history\n\n"
+        "**Commands:**\n"
+        "- /start - Start the bot\n"
+        "- /set_key - Set your API key\n"
+        "- /my_files - View your compressed files\n"
+        "- /delete_file - Delete a compressed file\n"
+        "- /about - Show this message\n\n"
+        "This bot is open source! You can find the source code on GitHub: https://github.com/faridoddin1/free-compress-bot"
+    )
+
 if __name__ == "__main__":
     print("Bot started...")
     app.run()
