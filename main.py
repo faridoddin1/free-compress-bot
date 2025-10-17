@@ -119,7 +119,7 @@ def process_video(message: Message):
                 'video_codec_compress': 'libx265',
                 'compress_video': 'by_video_quality',
                 'video_compress_crf_x265': '28',
-                'video_compress_speed': 'veryfast'
+                'video_compress_speed': 'medium'
             }
         }
         headers = {
