@@ -92,6 +92,7 @@ def process_video(message: Message):
             'Authorization': f'Bearer {api_key}',
             'Accept': 'application/json',
         }
+        print(f"Upload task headers: {headers}")
         response = requests.post('https://api.freeconvert.com/v1/process/import/upload', headers=headers)
         upload_task = response.json()
 
@@ -126,6 +127,8 @@ def process_video(message: Message):
             'Accept': 'application/json',
             'Authorization': f'Bearer {api_key}',
         }
+        print(f"Compress task headers: {headers}")
+        print(f"Compress task body: {compress_task_body}")
         response = requests.post('https://api.freeconvert.com/v1/process/compress', json=compress_task_body, headers=headers)
         compress_task = response.json()
 
