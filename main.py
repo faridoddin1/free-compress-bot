@@ -1,4 +1,3 @@
-
 import os
 import tempfile
 import requests
@@ -127,6 +126,9 @@ def process_video(message: Message):
             caption=f"✅ Video compressed successfully!\n📁 Original: {file_name}"
         )
 
+        # Add the compressed file to the database
+        database.add_compressed_file(user_id, file_name, temp_filename)
+
     except Exception as e:
         processing_msg.edit_text(f"❌ An error occurred: {str(e)}")
     finally:
@@ -152,7 +154,7 @@ def set_key_command(client, message: Message):
     user_states[user_id] = "awaiting_api_key"
 
 @app.on_message(filters.text)
-def handle_api_key(client, message: Message):
+def handle_text(client, message: Message):
     user_id = message.from_user.id
     if user_states.get(user_id) == "awaiting_api_key":
         # A simple regex to validate the key format. This is not a foolproof validation.
@@ -162,11 +164,63 @@ def handle_api_key(client, message: Message):
             user_states.pop(user_id, None)
         else:
             message.reply_text("❌ Invalid API key format. Please send a valid key.")
+    elif user_states.get(user_id) == "awaiting_file_to_delete":
+        try:
+            file_id_to_delete = int(message.text)
+            files = database.get_user_files(user_id)
+            file_to_delete = None
+            for file in files:
+                if file[0] == file_id_to_delete:
+                    file_to_delete = file
+                    break
+            
+            if file_to_delete:
+                # Delete from filesystem
+                if os.path.exists(file_to_delete[2]):
+                    os.remove(file_to_delete[2])
+                # Delete from database
+                database.delete_compressed_file(file_to_delete[0])
+                message.reply_text("✅ File deleted successfully!")
+            else:
+                message.reply_text("❌ Invalid file number. Please try again.")
+            user_states.pop(user_id, None)
+        except ValueError:
+            message.reply_text("❌ Invalid input. Please send a number.")
 
 @app.on_message(filters.video | filters.document)
 def handle_media(client, message: Message):
     thread = threading.Thread(target=process_video, args=(message,))
     thread.start()
+
+@app.on_message(filters.command("my_files"))
+def my_files(client, message: Message):
+    user_id = message.from_user.id
+    files = database.get_user_files(user_id)
+    if not files:
+        message.reply_text("You haven't compressed any files yet.")
+        return
+
+    response = "Your compressed files:\n\n"
+    for file_id, original_name, compressed_name, date in files:
+        response += f"- **ID:** {file_id}\n  **Original:** {original_name}\n  **Compressed:** {compressed_name}\n  **Date:** {date}\n"
+
+    message.reply_text(response)
+
+@app.on_message(filters.command("delete_file"))
+def delete_file_command(client, message: Message):
+    user_id = message.from_user.id
+    files = database.get_user_files(user_id)
+    if not files:
+        message.reply_text("You haven't compressed any files yet.")
+        return
+
+    response = "Your compressed files:\n\n"
+    for file_id, original_name, compressed_name, date in files:
+        response += f"- **ID:** {file_id}\n  **Original:** {original_name}\n  **Compressed:** {compressed_name}\n  **Date:** {date}\n"
+    response += "\nPlease reply with the ID of the file you want to delete."
+
+    message.reply_text(response)
+    user_states[user_id] = "awaiting_file_to_delete"
 
 if __name__ == "__main__":
     print("Bot started...")
