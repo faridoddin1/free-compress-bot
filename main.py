@@ -240,6 +240,15 @@ def about(client, message: Message):
         "This bot is open source! You can find the source code on GitHub: https://github.com/faridoddin1/free-compress-bot"
     )
 
+@app.on_message(filters.command("cancel"))
+def cancel(client, message: Message):
+    user_id = message.from_user.id
+    if user_states.get(user_id):
+        user_states.pop(user_id, None)
+        message.reply_text("Operation cancelled.")
+    else:
+        message.reply_text("Nothing to cancel.")
+
 if __name__ == "__main__":
     print("Bot started...")
     app.run()
