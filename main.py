@@ -2,15 +2,11 @@ import os
 import tempfile
 import requests
 import time
+import json
 import re
 import threading
 from pyrogram import Client, filters
 from pyrogram.types import Message
-
-import database
-
-# Initialize the database
-database.init_db()
 
 # Get API keys from environment variables
 API_ID = os.environ.get("API_ID")
@@ -24,15 +20,50 @@ if not all([API_ID, API_HASH, API_TOKEN]):
 
 app = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=API_TOKEN)
 
+# Load user API keys from file
+try:
+    with open("user_keys.json", "r") as f:
+        user_keys = json.load(f)
+except FileNotFoundError:
+    user_keys = {}
+
 # In-memory dictionary to store user states
 user_states = {}
 
-def process_video(message: Message):
+@app.on_message(filters.command("start"))
+def start(client, message: Message):
     user_id = message.from_user.id
-    api_key = database.get_api_key(user_id)
+    if str(user_id) in user_keys:
+        message.reply_text("Welcome back! Send your video files for compression.")
+    else:
+        message.reply_text("Welcome! To get started, please send me your Key. You can get it from https://www.freeconvert.com/account/api-tokens.")
+        user_states[user_id] = "awaiting_api_key"
+
+@app.on_message(filters.command("add_key"))
+def add_key_command(client, message: Message):
+    user_id = message.from_user.id
+    message.reply_text("Please send me your new FREE_CONVERT_API_KEY.")
+    user_states[user_id] = "awaiting_api_key"
+
+@app.on_message(filters.text)
+def handle_text(client, message: Message):
+    user_id = message.from_user.id
+    if user_states.get(user_id) == "awaiting_api_key":
+        if re.match(r"^[a-z0-9_]+\.[a-f0-9]+\.[a-f0-9]+$", message.text):
+            user_keys[str(user_id)] = message.text
+            with open("user_keys.json", "w") as f:
+                json.dump(user_keys, f)
+            message.reply_text("✅ API key saved successfully! You can now send video files for compression.")
+            user_states.pop(user_id, None)
+        else:
+            message.reply_text("❌ Invalid API key format. Please send a valid key.")
+
+def process_video(message: Message):
+    user_id = str(message.from_user.id)
+    api_key = user_keys.get(user_id)
 
     if not api_key:
-        message.reply_text("You haven't set your API key yet. Please use the /start or /set_key command.")
+        message.reply_text("You haven't set your API key yet. Please use the /start or /add_key command.")
         return
 
     if message.document:
@@ -126,9 +157,6 @@ def process_video(message: Message):
             caption=f"✅ Video compressed successfully!\n📁 Original: {file_name}"
         )
 
-        # Add the compressed file to the database
-        database.add_compressed_file(user_id, file_name, temp_filename)
-
     except Exception as e:
         processing_msg.edit_text(f"❌ An error occurred: {str(e)}")
     finally:
@@ -137,90 +165,10 @@ def process_video(message: Message):
         if 'temp_filename' in locals() and os.path.exists(temp_filename):
             os.remove(temp_filename)
 
-@app.on_message(filters.command("start"))
-def start(client, message: Message):
-    user_id = message.from_user.id
-    api_key = database.get_api_key(user_id)
-    if api_key:
-        message.reply_text("Welcome back! Send your video files for compression.")
-    else:
-        message.reply_text("Welcome! To get started, please send me your Key. You can get it from https://www.freeconvert.com/account/api-tokens.")
-        user_states[user_id] = "awaiting_api_key"
-
-@app.on_message(filters.command("set_key"))
-def set_key_command(client, message: Message):
-    user_id = message.from_user.id
-    message.reply_text("Please send me your new FREE_CONVERT_API_KEY.")
-    user_states[user_id] = "awaiting_api_key"
-
-@app.on_message(filters.text)
-def handle_text(client, message: Message):
-    user_id = message.from_user.id
-    if user_states.get(user_id) == "awaiting_api_key":
-        # A simple regex to validate the key format. This is not a foolproof validation.
-        if re.match(r"^[a-z0-9_]+\.[a-f0-9]+\.[a-f0-9]+$", message.text):
-            database.set_api_key(user_id, message.text)
-            message.reply_text("✅ API key saved successfully! You can now send video files for compression.")
-            user_states.pop(user_id, None)
-        else:
-            message.reply_text("❌ Invalid API key format. Please send a valid key.")
-    elif user_states.get(user_id) == "awaiting_file_to_delete":
-        try:
-            file_id_to_delete = int(message.text)
-            files = database.get_user_files(user_id)
-            file_to_delete = None
-            for file in files:
-                if file[0] == file_id_to_delete:
-                    file_to_delete = file
-                    break
-            
-            if file_to_delete:
-                # Delete from filesystem
-                if os.path.exists(file_to_delete[2]):
-                    os.remove(file_to_delete[2])
-                # Delete from database
-                database.delete_compressed_file(file_to_delete[0])
-                message.reply_text("✅ File deleted successfully!")
-            else:
-                message.reply_text("❌ Invalid file number. Please try again.")
-            user_states.pop(user_id, None)
-        except ValueError:
-            message.reply_text("❌ Invalid input. Please send a number.")
-
 @app.on_message(filters.video | filters.document)
 def handle_media(client, message: Message):
     thread = threading.Thread(target=process_video, args=(message,))
     thread.start()
-
-@app.on_message(filters.command("my_files"))
-def my_files(client, message: Message):
-    user_id = message.from_user.id
-    files = database.get_user_files(user_id)
-    if not files:
-        message.reply_text("You haven't compressed any files yet.")
-        return
-
-    response = "Your compressed files:\n\n"
-    for file_id, original_name, compressed_name, date in files:
-        response += f"- **ID:** {file_id}\n  **Original:** {original_name}\n  **Compressed:** {compressed_name}\n  **Date:** {date}\n"
-
-    message.reply_text(response)
-
-@app.on_message(filters.command("delete_file"))
-def delete_file_command(client, message: Message):
-    user_id = message.from_user.id
-    files = database.get_user_files(user_id)
-    if not files:
-        message.reply_text("You haven't compressed any files yet.")
-        return
-
-    response = "Your compressed files:\n\n"
-    for file_id, original_name, compressed_name, date in files:
-        response += f"- **ID:** {file_id}\n  **Original:** {original_name}\n  **Compressed:** {compressed_name}\n  **Date:** {date}\n"
-    response += "\nPlease reply with the ID of the file you want to delete."
-
-    message.reply_text(response)
-    user_states[user_id] = "awaiting_file_to_delete"
 
 @app.on_message(filters.command("about"))
 def about(client, message: Message):
@@ -228,14 +176,10 @@ def about(client, message: Message):
         "**About This Bot**\n\n"
         "This bot compresses your video files using the freeconvert.com API.\n\n"
         "**Features:**\n"
-        "- Compress videos up to 100MB\n"
-        "- Keep a history of your compressed files\n"
-        "- Delete files from your history\n\n"
+        "- Compress videos up to 100MB\n\n"
         "**Commands:**\n"
         "- /start - Start the bot\n"
-        "- /set_key - Set your API key\n"
-        "- /my_files - View your compressed files\n"
-        "- /delete_file - Delete a compressed file\n"
+        "- /add_key - Set your API key\n"
         "- /about - Show this message\n\n"
         "This bot is open source! You can find the source code on GitHub: https://github.com/faridoddin1/free-compress-bot"
     )
