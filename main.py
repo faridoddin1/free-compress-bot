@@ -97,7 +97,7 @@ def process_video(message: Message):
 
         if 'id' not in upload_task:
             print(f"Error in upload task response: {upload_task}")
-            processing_msg.edit_text("❌ An error occurred while processing your video. Please check your API key and try again.")
+            processing_msg.edit_text(f"❌ An unexpected error occurred with the compression service. The server response was: {upload_task}")
             return
 
         # 2. Upload the file
@@ -131,7 +131,7 @@ def process_video(message: Message):
 
         if 'id' not in compress_task:
             print(f"Error in compress task response: {compress_task}")
-            processing_msg.edit_text("❌ An error occurred while processing your video. Please check your API key and try again.")
+            processing_msg.edit_text(f"❌ An unexpected error occurred with the compression service. The server response was: {compress_task}")
             return
 
         compress_task_id = compress_task['id']
