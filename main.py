@@ -142,7 +142,7 @@ def start(client, message: Message):
     if api_key:
         message.reply_text("Welcome back! Send your video files for compression.")
     else:
-        message.reply_text("Welcome! To get started, please send me your FREE_CONVERT_API_KEY. You can get one from freeconvert.com.")
+        message.reply_text("Welcome! To get started, please send me your Key. You can get it from https://www.freeconvert.com/account/api-tokens.")
         user_states[user_id] = "awaiting_api_key"
 
 @app.on_message(filters.command("set_key"))
